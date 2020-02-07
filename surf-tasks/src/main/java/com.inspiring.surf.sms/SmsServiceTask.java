@@ -10,6 +10,7 @@ import com.inspiring.iep.message.messenger.SmsMessenger;
 import com.inspiring.iep.task.exception.SendToBackOfficeException;
 import com.inspiring.surf.sms.beans.SMSAuthResponse;
 import com.inspiring.surf.sms.beans.SMSResponse;
+
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.util.HashMap;
@@ -19,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.PostConstruct;
 import javax.ws.rs.core.MediaType;
+
 import org.apache.commons.lang3.StringUtils;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.SocketConfig;
@@ -96,7 +98,8 @@ public class SmsServiceTask implements SmsMessenger, PropertyListener {
 
     private RestTemplate smsServer;
     private PoolingHttpClientConnectionManager currentHttpPool;
-    private @Autowired DynamicProperties dynamicProperties;
+    private @Autowired
+    DynamicProperties dynamicProperties;
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private long timeLimit = 0;
     private String indexDate;
@@ -114,7 +117,7 @@ public class SmsServiceTask implements SmsMessenger, PropertyListener {
                 if (currentHttpPool != null) {
                     if (currentHttpPool.getTotalStats().getPending() > 10) {
                         log.warn("SMS Connection Manager has {} requests pending. Increase for better performance",
-                                 currentHttpPool.getTotalStats().getPending());
+                                currentHttpPool.getTotalStats().getPending());
                     }
                 }
                 try {
@@ -203,13 +206,14 @@ public class SmsServiceTask implements SmsMessenger, PropertyListener {
             if (response.getStatusCode().is2xxSuccessful()) {
                 SMSResponse smsResponse = response.getBody();
                 if (nonNull(smsResponse.getSucesso()) && smsResponse.getSucesso().equals("0")) {
-                    smsAudit.info("campaignConfigId:{};campaignTargetId:{};to:{};from:{};messageId:{};text:{}",
-                                  campaignConfigId,
-                                  campaignTargetId,
-                                  dest,
-                                  from,
-                                  message.getConfigId(),
-                                  message.getText());
+                    smsAudit.info("campaignConfigId:{};campaignTargetId:{};to:{};from:{};messageId:{};text:{};transactionId:{}",
+                            campaignConfigId,
+                            campaignTargetId,
+                            dest,
+                            from,
+                            message.getConfigId(),
+                            message.getText(),
+                            smsResponse.getTransacao());
                     printReport(dest, from, campaignConfigId, campaignTargetId, message.getConfigId());
                     return HttpStatus.OK;
                 } else if (nonNull(smsResponse.getErro())) {
@@ -218,16 +222,16 @@ public class SmsServiceTask implements SmsMessenger, PropertyListener {
                         token = null;
                         return null;
                     } else if (smsResponse.getErro().equals(12)) {
-                        log.error("SMS Send Error - Cliente nao existe: {}",dest);
+                        log.error("SMS Send Error - Cliente nao existe: {}", dest);
                         return HttpStatus.BAD_REQUEST;
                     } else {
                         log.error("SMS message couldn't be sent during to error. ErrorMessage: {}",
-                                  smsResponse.getDescricao());
+                                smsResponse.getDescricao());
                         return HttpStatus.BAD_REQUEST;
                     }
                 } else {
                     log.error("SMS message couldn't be sent during to error. ErrorCode: {}, ErrorMessage: {}",
-                              smsResponse.getErro(), smsResponse.getDescricao());
+                            smsResponse.getErro(), smsResponse.getDescricao());
                     return HttpStatus.BAD_REQUEST;
                 }
             } else {
@@ -236,7 +240,7 @@ public class SmsServiceTask implements SmsMessenger, PropertyListener {
         } catch (HttpStatusCodeException e) {
 
             log.error("Error sending SMS, HttpError: {}-{}, Cause by: {}", e.getStatusCode().value(), e.getStatusCode().getReasonPhrase(),
-                      e.getMostSpecificCause().getMessage());
+                    e.getMostSpecificCause().getMessage());
 
             return e.getStatusCode();
         } catch (RestClientException e) {
@@ -313,7 +317,7 @@ public class SmsServiceTask implements SmsMessenger, PropertyListener {
 
     private String getUrl() {
         String host = dynamicProperties.getString(SMS_HOST, "http://backend-platform.develop.surfgroup.nuageit.com.br");
-        String endpoint = dynamicProperties.getString(SMS_ENDPOINT, "/api-plintron-consulta/v1/sms");
+        String endpoint = dynamicProperties.getString(SMS_ENDPOINT, "/api-plintron-consulta/v1/sms/surf");
         return host + endpoint;
     }
 

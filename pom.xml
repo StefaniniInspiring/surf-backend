@@ -24,6 +24,33 @@
       <module>surf-server</module>
     </modules>
 
+    <distributionManagement>
+        <repository>
+            <id>inspiring-repo</id>
+            <url>http://nexus.repo.stefaniniinspiring.com.br/repository/inspiring-repo-releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>inspiring-repo</id>
+            <url>http://nexus.repo.stefaniniinspiring.com.br/repository/inspiring-repo-snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
+    <repositories>
+        <repository>
+            <id>inspiring-repo-releases</id>
+            <url>http://nexus.repo.stefaniniinspiring.com.br/repository/inspiring-repo-releases/</url>
+        </repository>
+        <repository>
+            <id>inspiring-repo-snapshots</id>
+            <url>http://nexus.repo.stefaniniinspiring.com.br/repository/inspiring-repo-snapshots/</url>
+        </repository>
+        <repository>
+            <id>bedatadriven</id>
+            <name>bedatadriven public repo</name>
+            <url>https://nexus.bedatadriven.com/content/groups/public/</url>
+        </repository>
+    </repositories>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
