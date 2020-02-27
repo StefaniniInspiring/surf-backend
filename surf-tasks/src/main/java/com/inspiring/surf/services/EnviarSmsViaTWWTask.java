@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import static java.util.Objects.isNull;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
 @Component
@@ -25,6 +27,8 @@ public class EnviarSmsViaTWWTask {
         String msisdn = (String) context.getParam("msisdn");
         String mensagem = (String) context.getParam("mensagem");
         String idCorrelacao = (String) context.getParam("idCorrelacao");
+        String campaignConfigId = (String) context.getParam("campaign.configId");
+        String campaignTargetId = (String) context.getParam("campaign.targetId");
 
         if (isBlank(msisdn)) {
             log.error("Task Enviar SMS Concatenado - Parametro obrigatorio nao informado: msisdn");
@@ -36,7 +40,14 @@ public class EnviarSmsViaTWWTask {
             throw new IepException("Parametro obrigatorio nao informado: mensagem");
         }
 
-        idCorrelacao = enviaSmsConcatenado.enviaSmsConcatenado(msisdn, mensagem, idCorrelacao);
+        if (isNull(campaignConfigId)) {
+            campaignConfigId = EMPTY;
+        }
+        if (isNull(campaignTargetId)) {
+            campaignTargetId = EMPTY;
+        }
+
+        idCorrelacao = enviaSmsConcatenado.enviaSmsConcatenado(msisdn, mensagem, idCorrelacao, campaignConfigId, campaignTargetId);
 
         context.setParam("result", idCorrelacao);
 

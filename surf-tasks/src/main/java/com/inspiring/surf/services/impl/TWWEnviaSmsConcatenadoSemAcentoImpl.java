@@ -2,6 +2,7 @@ package com.inspiring.surf.services.impl;
 
 import com.inspiring.iep.commons.exceptions.IepException;
 import com.inspiring.iep.commons.listeners.PropertyListener;
+import com.inspiring.iep.commons.util.DateUtils;
 import com.inspiring.iep.commons.util.DynamicProperties;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.http.client.config.RequestConfig;
@@ -26,12 +27,17 @@ import org.springframework.web.client.RestTemplate;
 
 import javax.annotation.PostConstruct;
 import javax.ws.rs.core.MediaType;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.inspiring.iep.commons.kpi.Register.*;
+import static com.inspiring.iep.commons.util.DateUtils.toISO8601;
+import static com.inspiring.iep.commons.util.JsonUtil.serialize;
+import static java.lang.System.currentTimeMillis;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static org.apache.commons.lang3.StringUtils.isBlank;
@@ -40,9 +46,11 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 @Component("surfEnviaSmsContatenadoSemAcento")
 public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
 
+    private static final String RANDOM_CHARS = "1234567890QWERTYUIOPASDFGHJKLZXCVBNM";
     private static final Logger log = LoggerFactory.getLogger(TWWEnviaSmsConcatenadoSemAcentoImpl.class);
     private static final Logger audit = LoggerFactory.getLogger("audit.surf.tww_sms");
     private static final Logger error = LoggerFactory.getLogger("error.surf.tww_sms");
+    private static final Logger report = LoggerFactory.getLogger("report.sms.sent");
 
     private static final String MAX_CONNECTIONS = "surf.tww.sms.connections.max";
     private static final String CONNECTION_TIMEOUT = "surf.tww.sms.connection.timeout";
@@ -52,11 +60,20 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
     private static final String URL = "surf.tww.sms.url";
     private static final String LOG_PREFIX = "TWW SMS - Envia SMS Concatenado";
 
+    private static final String PARTICIPANT = "participant";
+    private static final String CAMPAIGN = "campaign";
+    private static final String AUDIT_DATE = "dt";
+    private static final String SMS = "sms";
+    private static final String FACTS = "fact";
+    private static final String DIMENSIONS = "dim";
+
     private RestTemplate server;
     private PoolingHttpClientConnectionManager currentHttpPool;
     private @Autowired DynamicProperties dynamicProperties;
     private ExecutorService executor = Executors.newSingleThreadExecutor();
     private AtomicInteger serie = new AtomicInteger(0);
+    private long timeLimit = 0;
+    private String indexDate;
 
     @PostConstruct
     public void ini() {
@@ -81,15 +98,15 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
         });
     }
 
-    public String enviaSmsConcatenado(String msisdn, String mensagem, String IdCorrelacao) throws IepException {
+    public String enviaSmsConcatenado(String msisdn, String mensagem, String idCorrelacao, String campaignConfigId, String campaignTargetId) throws IepException {
 
-        if (isBlank(IdCorrelacao)) {
-            IdCorrelacao = gerarIdCorrelacao();
+        if (isBlank(idCorrelacao)) {
+            idCorrelacao = gerarIdCorrelacao();
         }
 
         String body = REQUEST.replace("${MSISDN}", "55".concat(msisdn));
         body = body.replace("${MENSAGEM}", mensagem);
-        body = body.replace("${ID_CORRELACAO}", IdCorrelacao);
+        body = body.replace("${ID_CORRELACAO}", idCorrelacao);
         body = body.replace("${USUARIO}", getUser());
         body = body.replace("${SENHA}", getPass());
         body = body.replace("${SERIE}", getSerie());
@@ -117,9 +134,10 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
 
                         if (isNotBlank(resposta)){
                             if (resposta.startsWith("OK")) {
-                                audit.info("msisdn:{};IdCorrelacao:{};mensagem:{}",msisdn, IdCorrelacao, mensagem);
+                                audit.info("msisdn:{};IdCorrelacao:{};mensagem:{}",msisdn, idCorrelacao, mensagem);
                                 startAndStopKpi("surf.tww_sms.success");
-                                return IdCorrelacao;
+                                printReport(msisdn, idCorrelacao, campaignConfigId, campaignTargetId);
+                                return idCorrelacao;
                             } else if (resposta.startsWith("NOK")) {
                                 log.error("{} - Usuario ou Senha Invalido: {}", LOG_PREFIX, resposta);
                             } else {
@@ -152,13 +170,13 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
             stopKpi();
         }
 
-        error.info("msisdn:{};IdCorrelacao:{};mensagem:{}",msisdn, IdCorrelacao, mensagem);
+        error.info("msisdn:{};IdCorrelacao:{};mensagem:{}",msisdn, idCorrelacao, mensagem);
         startAndStopKpi("surf.tww_sms.error");
         throw new IepException("Erro ao enviar SMS Concatenado");
     }
 
     private String gerarIdCorrelacao() {
-        return RandomStringUtils.random(10, true, true);
+        return RandomStringUtils.random(10, RANDOM_CHARS);
     }
 
     private synchronized String getSerie() {
@@ -168,6 +186,45 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
             return "0";
         }
         return String.valueOf(valorAtual);
+    }
+
+    private void printReport(String dest, String idCorrelacao, String campaignConfigId, String campaignTargetId) {
+        try {
+            Map<String, Object> reportData = new HashMap<>();
+            reportData.put(AUDIT_DATE, toISO8601(DateUtils.now()));
+
+            Map<String, Object> dimensions = new HashMap<>();
+            reportData.put(DIMENSIONS, dimensions);
+
+            dimensions.put(PARTICIPANT.concat(".msisdn"), dest);
+            if (isNotBlank(campaignConfigId)) {
+                dimensions.put(CAMPAIGN.concat(".config_id"), campaignConfigId);
+            }
+            if (isNotBlank(campaignTargetId)) {
+                dimensions.put(CAMPAIGN.concat(".target"), campaignTargetId);
+            }
+
+            Map<String, Object> facts = new HashMap<>();
+            reportData.put(FACTS, facts);
+
+            facts.put(SMS.concat(".out"), 1);
+
+            report.info("sms-{};dft;{}", getIndexDate(), serialize(reportData));
+        } catch (Exception e) {
+            if (log.isDebugEnabled()) {
+                log.warn("Error generating sms report data", e);
+            } else {
+                log.warn("Error generating sms report data, cause: {}", e.getMessage());
+            }
+        }
+    }
+
+    private String getIndexDate() {
+        if (timeLimit <= currentTimeMillis()) {
+            timeLimit = DateUtils.addDays(DateUtils.today(), 1).getTime();
+            indexDate = DateUtils.format("yyyy-MM-dd");
+        }
+        return indexDate;
     }
 
     private void updateHttpClientConfig() {
