@@ -31,8 +31,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.inspiring.iep.commons.kpi.Register.startKpi;
-import static com.inspiring.iep.commons.kpi.Register.stopKpi;
+import static com.inspiring.iep.commons.kpi.Register.*;
 import static java.util.Arrays.asList;
 import static java.util.concurrent.CompletableFuture.runAsync;
 import static org.apache.commons.lang3.StringUtils.isBlank;
@@ -119,6 +118,7 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
                         if (isNotBlank(resposta)){
                             if (resposta.startsWith("OK")) {
                                 audit.info("msisdn:{};IdCorrelacao:{};mensagem:{}",msisdn, IdCorrelacao, mensagem);
+                                startAndStopKpi("surf.tww_sms.success");
                                 return IdCorrelacao;
                             } else if (resposta.startsWith("NOK")) {
                                 log.error("{} - Usuario ou Senha Invalido: {}", LOG_PREFIX, resposta);
@@ -153,6 +153,7 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
         }
 
         error.info("msisdn:{};IdCorrelacao:{};mensagem:{}",msisdn, IdCorrelacao, mensagem);
+        startAndStopKpi("surf.tww_sms.error");
         throw new IepException("Erro ao enviar SMS Concatenado");
     }
 
