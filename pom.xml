@@ -9,14 +9,14 @@
 
     <groupId>com.inspiring.surf</groupId>
     <artifactId>surf</artifactId>
-    <version>1.0.1-SNAPSHOT</version>
+    <version>1.0.1</version>
     <name>[Surf] POM</name>
     <packaging>pom</packaging>
 
     <scm>
         <url>https://github.com/StefaniniInspiring/surf-backend.git</url>
         <connection>scm:git:https://github.com/StefaniniInspiring/surf-backend.git</connection>
-        <tag>surf-1.0.0</tag>
+        <tag>surf-1.0.1</tag>
     </scm>
     
     <modules>
