@@ -46,7 +46,7 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
 @Component("surfEnviaSmsContatenadoSemAcento")
 public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
 
-    private static final String RANDOM_CHARS = "1234567890QWERTYUIOPASDFGHJKLZXCVBNM";
+    private static final String RANDOM_CHARS = "QWERTYUIOPASDFGHJKLZXCVBNM";
     private static final Logger log = LoggerFactory.getLogger(TWWEnviaSmsConcatenadoSemAcentoImpl.class);
     private static final Logger audit = LoggerFactory.getLogger("audit.surf.tww_sms");
     private static final Logger error = LoggerFactory.getLogger("error.surf.tww_sms");
@@ -102,14 +102,24 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
 
         if (isBlank(idCorrelacao)) {
             idCorrelacao = gerarIdCorrelacao();
+            log.debug("{} - ID nao informado, ID Gerado: {}", LOG_PREFIX, idCorrelacao);
         }
 
-        String body = REQUEST.replace("${MSISDN}", "55".concat(msisdn));
+        String body = null;
+
+        if (mensagem.length() > 160) {
+            body = REQUEST_SMS_CONCATENADO.replace("${MSISDN}", "55".concat(msisdn));
+            body = body.replace("${SERIE}", getSerie());
+            log.debug("{} - Enviando SMS Concatanado, ID: {}", LOG_PREFIX, idCorrelacao);
+        } else {
+            body = REQUEST_SMS.replace("${MSISDN}", "55".concat(msisdn));
+            log.debug("{} - Enviando SMS Unificado, ID: {}", LOG_PREFIX, idCorrelacao);
+        }
         body = body.replace("${MENSAGEM}", mensagem);
         body = body.replace("${ID_CORRELACAO}", idCorrelacao);
         body = body.replace("${USUARIO}", getUser());
         body = body.replace("${SENHA}", getPass());
-        body = body.replace("${SERIE}", getSerie());
+
 
 
         MultiValueMap<String, String> headers = new LinkedMultiValueMap<>();
@@ -127,10 +137,10 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
                 String responseBody = response.getBody();
 
                 if (responseBody != null) {
-                    if (responseBody.contains("EnviaSMSConcatenadoSemAcentoResult")) {
-                        int start = responseBody.indexOf("EnviaSMSConcatenadoSemAcentoResult");
-                        int end = responseBody.indexOf("EnviaSMSConcatenadoSemAcentoResult", start+1);
-                        String resposta = responseBody.substring(start + 35, end - 2);
+                    if (responseBody.contains("Result>")) {
+                        int start = responseBody.indexOf("Result>");
+                        int end = responseBody.indexOf("</", start+1);
+                        String resposta = responseBody.substring(start + 7, end);
 
                         if (isNotBlank(resposta)){
                             if (resposta.startsWith("OK")) {
@@ -176,7 +186,7 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
     }
 
     private String gerarIdCorrelacao() {
-        return RandomStringUtils.random(10, RANDOM_CHARS);
+        return DateUtils.format("yyyyMMddHHmmss") + RandomStringUtils.random(6, RANDOM_CHARS);
     }
 
     private synchronized String getSerie() {
@@ -314,5 +324,6 @@ public class TWWEnviaSmsConcatenadoSemAcentoImpl implements PropertyListener {
     }
 
 
-    private static final String REQUEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap12:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soap12=\"http://www.w3.org/2003/05/soap-envelope\"><soap12:Body><EnviaSMSConcatenadoSemAcento xmlns=\"https://www.twwwireless.com.br/reluzcap/wsreluzcap\"><NumUsu>${USUARIO}</NumUsu><Senha>${SENHA}</Senha><SeuNum>${ID_CORRELACAO}</SeuNum><Serie>${SERIE}</Serie><Celular>${MSISDN}</Celular><Mensagem>${MENSAGEM}</Mensagem></EnviaSMSConcatenadoSemAcento></soap12:Body></soap12:Envelope>";
+    private static final String REQUEST_SMS = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap12:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soap12=\"http://www.w3.org/2003/05/soap-envelope\"><soap12:Body><EnviaSMS xmlns=\"https://www.twwwireless.com.br/reluzcap/wsreluzcap\"><NumUsu>${USUARIO}</NumUsu><Senha>${SENHA}</Senha><SeuNum>${ID_CORRELACAO}</SeuNum><Celular>${MSISDN}</Celular><Mensagem>${MENSAGEM}</Mensagem></EnviaSMS></soap12:Body></soap12:Envelope>";
+    private static final String REQUEST_SMS_CONCATENADO = "<?xml version=\"1.0\" encoding=\"utf-8\"?><soap12:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:soap12=\"http://www.w3.org/2003/05/soap-envelope\"><soap12:Body><EnviaSMSConcatenadoSemAcento xmlns=\"https://www.twwwireless.com.br/reluzcap/wsreluzcap\"><NumUsu>${USUARIO}</NumUsu><Senha>${SENHA}</Senha><SeuNum>${ID_CORRELACAO}</SeuNum><Serie>${SERIE}</Serie><Celular>${MSISDN}</Celular><Mensagem>${MENSAGEM}</Mensagem></EnviaSMSConcatenadoSemAcento></soap12:Body></soap12:Envelope>";
 }
